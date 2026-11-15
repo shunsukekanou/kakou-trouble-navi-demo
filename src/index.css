@@ -56,6 +56,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .phBtn b { font-size: 1.25rem; }
 .phBtn span { color: var(--sub); font-size: 0.88rem; }
 .phBtn em { font-style: normal; color: var(--main); font-size: 0.8rem; font-weight: 700; }
+.phBtn.other { border-style: dashed; background: #fffcf9; }
+.freeBox { margin: 6px 0; }
+.resHead { margin: 16px 0 4px; font-size: 1rem; color: #6a2f12; }
 .phBtn:hover, .phBtn:active { border-color: var(--main-hi); background: #fff1e6; }
 
 /* 質問の選択肢 */

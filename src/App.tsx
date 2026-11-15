@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { CAUSES, KINDS, OTHER, PHENS, STATUSES, causeName, causeOf, phName } from './data'
 import type { Case, Cause, Kind, Status } from './data'
+import { searchFree } from './search'
 import { download, fromCsv, isCase, isSaved, loadCases, newId, resetCases, saveCases, toCsv, ym, ymJa } from './lib'
 
 type Tab = 'find' | 'cases' | 'revise'
@@ -59,7 +60,10 @@ export default function App() {
 function Find({ cases, onRegister }: { cases: Case[]; onRegister: (ph: string, cause: string) => void }) {
   const [ph, setPh] = useState<string | null>(null)
   const [ans, setAns] = useState<number[]>([])
+  const [free, setFree] = useState(false)
   const phen = PHENS.find((p) => p.id === ph)
+
+  if (!phen && free) return <FreeSearch cases={cases} onBack={() => setFree(false)} onRegister={onRegister} />
 
   if (!phen) {
     return (
@@ -74,6 +78,11 @@ function Find({ cases, onRegister }: { cases: Case[]; onRegister: (ph: string, c
               <em>過去の事例 {cases.filter((c) => c.ph === p.id).length}件</em>
             </button>
           ))}
+          <button className="phBtn other" onClick={() => setFree(true)}>
+            <b>その他（自分の言葉で探す）</b>
+            <span>上のどれにも当てはまらないとき。起きていることを書くと、近い原因と事例を探します</span>
+            <em>言葉で検索</em>
+          </button>
         </div>
         <p className="note">原因の候補と点検の順番は、一般的な目安です。実際の現場では、自社の標準書と実績を優先してください。</p>
       </section>
@@ -185,6 +194,7 @@ function CauseCard(props: {
   hits: string[]
   cases: Case[]
   open: boolean
+  hitText?: string
   onRegister: (ph: string, cause: string) => void
 }) {
   const { c, cases } = props
@@ -199,7 +209,7 @@ function CauseCard(props: {
         <p>{c.why}</p>
         {props.hits.length > 0 && (
           <p className="hit">
-            あなたの答えで当てはまった所：{props.hits.map((h) => `「${h}」`).join('、')}
+            {props.hitText ?? 'あなたの答えで当てはまった所'}：{props.hits.map((h) => `「${h}」`).join('、')}
           </p>
         )}
         <h4>点検・調整の順番</h4>
@@ -218,6 +228,56 @@ function CauseCard(props: {
         </button>
       </div>
     </details>
+  )
+}
+
+/* ---------- その他：自分の言葉で探す ---------- */
+const EXAMPLES = ['砥石が焼けたように変色する', '朝だけ寸法が大きい', '回すと異音がして縞が出る', '角にささくれが残る']
+
+function FreeSearch({ cases, onBack, onRegister }: { cases: Case[]; onBack: () => void; onRegister: (ph: string, cause: string) => void }) {
+  const [text, setText] = useState('')
+  const { hits, looseCases } = useMemo(() => searchFree(text, cases), [text, cases])
+  const typed = text.trim().length >= 2
+  return (
+    <section>
+      <div className="ctx">
+        <div>
+          <small>調べ方</small>
+          <b>その他：自分の言葉で探す</b>
+        </div>
+      </div>
+      <h2 className="qh">いま起きていることを、自分の言葉で書いてください</h2>
+      <p className="sub">書いた言葉に近い、原因の候補と過去の事例を、下に出します。短い言葉でも探せます。</p>
+      <textarea className="freeBox" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="例：朝の最初の数個だけ、寸法が大きい" aria-label="起きていること" />
+      <div className="chips">
+        {EXAMPLES.map((x) => (
+          <button key={x} className="chip small" onClick={() => setText(x)}>{x}</button>
+        ))}
+      </div>
+      {!typed && <p className="sub">上の例を押すと、書き方の見本が入ります。</p>}
+      {typed && hits.length === 0 && (
+        <p className="note">近い原因が見つかりませんでした。別の言葉（例：欠け・荒れ・ズレ・ビビリ・バリ）で書くか、戻って現象から選んでください。</p>
+      )}
+      {typed && hits.length > 0 && (
+        <>
+          <h3 className="resHead">近い原因の候補（言葉の近い順）</h3>
+          {hits.map((h, i) => (
+            <CauseCard key={h.c.id} rank={i + 1} c={h.c} hits={h.words.slice(0, 5)} hitText="あなたの言葉と重なった所" cases={cases.filter((x) => x.cause === h.c.id)} open={i === 0} onRegister={onRegister} />
+          ))}
+        </>
+      )}
+      {typed && looseCases.length > 0 && (
+        <>
+          <h3 className="resHead">原因が未特定の事例で、言葉が近いもの</h3>
+          {looseCases.map((x) => (
+            <CaseCard key={x.id} c={x} compact />
+          ))}
+        </>
+      )}
+      <div className="row">
+        <button className="btn ghost" onClick={onBack}>← 現象から選ぶ</button>
+      </div>
+    </section>
   )
 }
 
